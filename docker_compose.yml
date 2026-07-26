@@ -1,35 +1,34 @@
 version: '3.8'
 
 services:
+  # MLflow Service
   mlflow:
     image: ghcr.io/mlflow/mlflow:v2.8.1
     container_name: mlflow-server
     ports:
       - "5000:5000"
-    environment:
-      - MLFLOW_ARTIFACT_ROOT=/mlflow/artifacts
-    command: |
-      mlflow server 
-      --host 0.0.0.0 
-      --port 5000 
-      --backend-store-uri /mlflow/mlflow.db 
-      --default-artifact-root /mlflow/artifacts
+    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri sqlite:///mlflow.db --default-artifact-root ./artifacts
     volumes:
-      - ./mlflow:/mlflow
+      - ./mlflow_data:/mlflow
+      - ./artifacts:/app/artifacts
     networks:
       - mlops-network
+    restart: unless-stopped
 
+  # FastAPI Application
   app:
     build: .
     container_name: llm-api
     ports:
       - "8000:8000"
     environment:
+      # This OVERRIDES the default SQLite and tells it to use MLflow service
       - MLFLOW_TRACKING_URI=http://mlflow:5000
       - MODEL_NAME=distilgpt2
       - MAX_LENGTH=100
       - TEMPERATURE=0.8
       - USE_GPU=false
+      - PYTHONUNBUFFERED=1
     depends_on:
       - mlflow
     volumes:
@@ -38,18 +37,7 @@ services:
       - ./models:/app/models
     networks:
       - mlops-network
-
-  tests:
-    build: .
-    container_name: test-runner
-    command: pytest tests/ -v
-    environment:
-      - MLFLOW_TRACKING_URI=http://mlflow:5000
-      - MODEL_NAME=distilgpt2
-    depends_on:
-      - mlflow
-    networks:
-      - mlops-network
+    restart: unless-stopped
 
 networks:
   mlops-network:
