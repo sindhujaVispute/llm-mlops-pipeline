@@ -15,7 +15,6 @@ env:
   TEMPERATURE: 0.8
 
 jobs:
-  # JOB 1: Test
   test:
     name: 🧪 Test
     runs-on: ubuntu-latest
@@ -51,17 +50,22 @@ jobs:
         pip install -r requirements.txt
         pip install pytest pytest-cov flake8 black httpx2
     
-    - name: Start MLflow server (background)
+    - name: Start MLflow server with SQLite
       run: |
-        nohup mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri ./mlflow > mlflow.log 2>&1 &
+        # Use SQLite backend instead of filesystem
+        mlflow server \
+          --host 0.0.0.0 \
+          --port 5000 \
+          --backend-store-uri sqlite:///mlflow.db \
+          --default-artifact-root ./artifacts \
+          --serve-artifacts &
         sleep 5
-        echo "MLflow server started with PID: $(pgrep -f 'mlflow server')"
-        cat mlflow.log || true
+        echo "MLflow server started"
     
     - name: Verify MLflow is running
       run: |
         for i in {1..30}; do
-          if curl -f http://localhost:5000/health 2>/dev/null; then
+          if curl -s http://localhost:5000/health > /dev/null; then
             echo "✅ MLflow is running!"
             exit 0
           fi
@@ -69,7 +73,7 @@ jobs:
           sleep 2
         done
         echo "❌ MLflow failed to start"
-        cat mlflow.log
+        cat mlflow.log 2>/dev/null || echo "No log file"
         exit 1
     
     - name: Run tests with coverage
@@ -84,7 +88,6 @@ jobs:
         name: codecov-umbrella
         fail_ci_if_error: false
 
-  # JOB 2: Train & Register Model
   train:
     name: 🤖 Train & Register
     runs-on: ubuntu-latest
@@ -121,16 +124,22 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
-    - name: Start MLflow server (background)
+    - name: Start MLflow server with SQLite
       run: |
-        nohup mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri ./mlflow > mlflow.log 2>&1 &
-        sleep 5
+        mlflow server \
+          --host 0.0.0.0 \
+          --port 5000 \
+          --backend-store-uri sqlite:///mlflow.db \
+          --default-artifact-root ./artifacts \
+          --serve-artifacts &
+        sleep 10
         echo "MLflow server started"
+        ls -la mlflow.db 2>/dev/null || echo "Database file not yet created"
     
     - name: Verify MLflow is running
       run: |
         for i in {1..30}; do
-          if curl -f http://localhost:5000/health 2>/dev/null; then
+          if curl -s http://localhost:5000/health > /dev/null; then
             echo "✅ MLflow is running!"
             exit 0
           fi
@@ -138,7 +147,6 @@ jobs:
           sleep 2
         done
         echo "❌ MLflow failed to start"
-        cat mlflow.log
         exit 1
     
     - name: Run training pipeline
@@ -160,12 +168,10 @@ jobs:
       with:
         name: mlflow-artifacts
         path: |
-          mlflow/
+          mlflow.db
           artifacts/
           logs/
-          mlflow.log
 
-  # JOB 3: Build Docker
   docker:
     name: 🐳 Build & Push Docker
     runs-on: ubuntu-latest
