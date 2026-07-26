@@ -10,8 +10,12 @@ on:
 env:
   PYTHON_VERSION: '3.11'
   MLFLOW_TRACKING_URI: http://localhost:5000
+  MODEL_NAME: distilgpt2
+  MAX_LENGTH: 100
+  TEMPERATURE: 0.8
 
 jobs:
+  # JOB 1: Test
   test:
     name: 🧪 Test
     runs-on: ubuntu-latest
@@ -47,21 +51,26 @@ jobs:
         pip install -r requirements.txt
         pip install pytest pytest-cov flake8 black httpx2
     
-    - name: Start MLflow server
+    - name: Start MLflow server (background)
       run: |
-        mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri ./mlflow &
-        sleep 10
-        curl -f http://localhost:5000/health || echo "MLflow not ready yet"
+        nohup mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri ./mlflow > mlflow.log 2>&1 &
         sleep 5
+        echo "MLflow server started with PID: $(pgrep -f 'mlflow server')"
+        cat mlflow.log || true
     
-    - name: Lint with flake8
+    - name: Verify MLflow is running
       run: |
-        flake8 app/ --count --select=E9,F63,F7,F82 --show-source --statistics || true
-        flake8 app/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    
-    - name: Check formatting with black
-      run: |
-        black --check app/ tests/ || true
+        for i in {1..30}; do
+          if curl -f http://localhost:5000/health 2>/dev/null; then
+            echo "✅ MLflow is running!"
+            exit 0
+          fi
+          echo "Waiting for MLflow... ($i/30)"
+          sleep 2
+        done
+        echo "❌ MLflow failed to start"
+        cat mlflow.log
+        exit 1
     
     - name: Run tests with coverage
       run: |
@@ -75,6 +84,7 @@ jobs:
         name: codecov-umbrella
         fail_ci_if_error: false
 
+  # JOB 2: Train & Register Model
   train:
     name: 🤖 Train & Register
     runs-on: ubuntu-latest
@@ -111,10 +121,25 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
-    - name: Start MLflow server
+    - name: Start MLflow server (background)
       run: |
-        mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri ./mlflow &
-        sleep 10
+        nohup mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri ./mlflow > mlflow.log 2>&1 &
+        sleep 5
+        echo "MLflow server started"
+    
+    - name: Verify MLflow is running
+      run: |
+        for i in {1..30}; do
+          if curl -f http://localhost:5000/health 2>/dev/null; then
+            echo "✅ MLflow is running!"
+            exit 0
+          fi
+          echo "Waiting for MLflow... ($i/30)"
+          sleep 2
+        done
+        echo "❌ MLflow failed to start"
+        cat mlflow.log
+        exit 1
     
     - name: Run training pipeline
       run: |
@@ -138,7 +163,9 @@ jobs:
           mlflow/
           artifacts/
           logs/
+          mlflow.log
 
+  # JOB 3: Build Docker
   docker:
     name: 🐳 Build & Push Docker
     runs-on: ubuntu-latest
