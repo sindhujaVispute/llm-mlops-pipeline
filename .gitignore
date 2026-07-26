@@ -1,0 +1,71 @@
+# Create .gitignore
+@"
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# MLflow
+mlruns/
+mlflow.db
+artifacts/
+models/
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+
+# Environment variables
+.env
+.env.local
+
+# Docker
+*.pid
+docker-compose.override.yml
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data
+*.csv
+*.json
+*.pkl
+
+# Model weights
+*.pt
+*.pth
+*.bin
+
+# Hugging Face cache
+.huggingface/
+.cache/
+"@ | Out-File -FilePath .gitignore -Encoding utf8

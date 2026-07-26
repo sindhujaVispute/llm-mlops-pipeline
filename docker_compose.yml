@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.8.1
+    container_name: mlflow-server
+    ports:
+      - "5000:5000"
+    environment:
+      - MLFLOW_ARTIFACT_ROOT=/mlflow/artifacts
+    command: |
+      mlflow server 
+      --host 0.0.0.0 
+      --port 5000 
+      --backend-store-uri /mlflow/mlflow.db 
+      --default-artifact-root /mlflow/artifacts
+    volumes:
+      - ./mlflow:/mlflow
+    networks:
+      - mlops-network
+
+  app:
+    build: .
+    container_name: llm-api
+    ports:
+      - "8000:8000"
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - MODEL_NAME=distilgpt2
+      - MAX_LENGTH=100
+      - TEMPERATURE=0.8
+      - USE_GPU=false
+    depends_on:
+      - mlflow
+    volumes:
+      - ./logs:/app/logs
+      - ./artifacts:/app/artifacts
+      - ./models:/app/models
+    networks:
+      - mlops-network
+
+  tests:
+    build: .
+    container_name: test-runner
+    command: pytest tests/ -v
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - MODEL_NAME=distilgpt2
+    depends_on:
+      - mlflow
+    networks:
+      - mlops-network
+
+networks:
+  mlops-network:
+    driver: bridge

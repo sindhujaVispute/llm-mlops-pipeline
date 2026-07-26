@@ -1,0 +1,15 @@
+
+mlflow
+transformers
+torch
+fastapi
+uvicorn[standard]
+pydantic
+python-dotenv
+psutil
+loguru
+pytest
+pytest-cov
+httpx
+setuptools
+wheel

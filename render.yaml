@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: llm-mlops-pipeline
+    runtime: docker
+    repo: https://github.com/yourusername/llm-mlops-pipeline
+    plan: starter
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: MLFLOW_TRACKING_URI
+        value: https://your-mlflow-server.com
+      - key: MODEL_NAME
+        value: distilgpt2
+      - key: MAX_LENGTH
+        value: 100
+      - key: TEMPERATURE
+        value: 0.8
+      - key: USE_GPU
+        value: false
+      - key: PYTHONUNBUFFERED
+        value: 1
+    healthCheckPath: /
+    autoDeploy: true
