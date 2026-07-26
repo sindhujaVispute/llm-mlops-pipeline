@@ -131,40 +131,106 @@ class TrainingPipeline:
                     "total_inference_time": total_time
                 })
                 
-                # Step 4: Log model to MLflow
+                # Step 4: Log model to MLflow - FIXED
                 logger.info("Logging model to MLflow...")
                 
-                # Create a signature for the model
+                # Create a simple signature
                 from mlflow.models import infer_signature
                 
-                # Create sample input
-                sample_input = "This is a sample prompt"
-                sample_input_ids = tokenizer.encode(sample_input, return_tensors="pt")
+                # Create sample input and output
+                sample_prompt = "This is a sample prompt"
+                sample_input_ids = tokenizer.encode(sample_prompt, return_tensors="pt")
                 
-                # Generate sample output
                 with torch.no_grad():
                     sample_output = model.generate(
                         sample_input_ids.to(model.device),
                         max_length=50,
                         temperature=0.7,
-                        pad_token_id=tokenizer.pad_token_id
+                        pad_token_id=tokenizer.pad_token_id,
+                        do_sample=True,
+                        top_p=0.95,
+                        top_k=50
                     )
                 sample_output_text = tokenizer.decode(sample_output[0], skip_special_tokens=True)
                 
                 # Infer signature
                 signature = infer_signature(
-                    sample_input, 
+                    sample_prompt, 
                     {"generated_text": sample_output_text}
                 )
                 
-                # Log model using transformers flavor
-                mlflow.transformers.log_model(
-                    transformers_model={"model": model, "tokenizer": tokenizer},
-                    artifact_path="distilgpt2_model",
-                    signature=signature,
-                    registered_model_name=settings.MODEL_REGISTRY_NAME,
-                    input_example="This is a test prompt"
-                )
+                # Log model with explicit pip requirements to avoid torchvision detection
+                try:
+                    # First try with transformers flavor
+                    mlflow.transformers.log_model(
+                        transformers_model={"model": model, "tokenizer": tokenizer},
+                        artifact_path="distilgpt2_model",
+                        signature=signature,
+                        registered_model_name=settings.MODEL_REGISTRY_NAME,
+                        input_example="This is a test prompt",
+                        pip_requirements=[
+                            "torch==2.6.0",
+                            "transformers==4.36.2",
+                            "accelerate==0.25.0"
+                        ]
+                    )
+                except Exception as e:
+                    logger.warning(f"Transformers flavor logging failed: {e}")
+                    logger.info("Trying alternative logging method...")
+                    
+                    # Alternative: Use pyfunc model
+                    from mlflow.models import Model
+                    from mlflow.pyfunc import PythonModel, PythonModelContext
+                    from mlflow.models.signature import ModelSignature
+                    from mlflow.types import Schema, ColSpec, DataType
+                    
+                    class DistilGPT2Wrapper(PythonModel):
+                        def __init__(self, model, tokenizer):
+                            self.model = model
+                            self.tokenizer = tokenizer
+                        
+                        def predict(self, context, model_input):
+                            import torch
+                            prompt = model_input["prompt"].values[0]
+                            inputs = self.tokenizer(
+                                prompt,
+                                return_tensors="pt",
+                                truncation=True,
+                                max_length=100
+                            )
+                            with torch.no_grad():
+                                outputs = self.model.generate(
+                                    **inputs,
+                                    max_length=100,
+                                    temperature=0.8,
+                                    pad_token_id=self.tokenizer.pad_token_id,
+                                    do_sample=True,
+                                    top_p=0.95,
+                                    top_k=50
+                                )
+                            return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+                    
+                    # Create wrapper
+                    wrapper = DistilGPT2Wrapper(model, tokenizer)
+                    
+                    # Define signature
+                    signature = ModelSignature(
+                        inputs=Schema([ColSpec(DataType.string, "prompt")]),
+                        outputs=Schema([ColSpec(DataType.string, "generated_text")])
+                    )
+                    
+                    # Log as PyFunc
+                    mlflow.pyfunc.log_model(
+                        artifact_path="distilgpt2_model",
+                        python_model=wrapper,
+                        signature=signature,
+                        registered_model_name=settings.MODEL_REGISTRY_NAME,
+                        pip_requirements=[
+                            "torch==2.6.0",
+                            "transformers==4.36.2",
+                            "accelerate==0.25.0"
+                        ]
+                    )
                 
                 # Step 5: Register model
                 logger.info("Registering model...")
@@ -222,13 +288,16 @@ def main():
     """Main entry point for training pipeline."""
     pipeline = TrainingPipeline()
     results = pipeline.run_pipeline()
-    print("\nPipeline Results:")
+    print("\n" + "=" * 60)
+    print("Pipeline Results:")
+    print("=" * 60)
     print(f"Status: {results['status']}")
     print(f"Run ID: {results['run_id']}")
     print(f"Model Registry: {results['model_registry_name']}")
     print(f"Model Version: {results['model_version']}")
-    print(f"Total Parameters: {results['total_parameters']}")
+    print(f"Total Parameters: {results['total_parameters']:,}")
     print(f"Average Inference Time: {results['average_inference_time']:.3f}s")
+    print("=" * 60)
 
 
 if __name__ == "__main__":

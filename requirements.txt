@@ -1,15 +1,33 @@
+# Core ML Libraries
+torch==2.6.0
+torchvision==0.21.0
+torchaudio==2.6.0
+transformers==4.36.2
+accelerate==0.25.0
 
-mlflow
-transformers
-torch
-fastapi
-uvicorn[standard]
-pydantic
-python-dotenv
-psutil
-loguru
-pytest
-pytest-cov
-httpx
-setuptools
-wheel
+# MLflow and Dependencies
+mlflow==2.8.1
+setuptools==69.0.3
+wheel==0.42.0
+protobuf==3.20.3
+
+# Web Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.4.2
+
+# Utilities
+python-dotenv==1.0.0
+psutil==5.9.6
+loguru==0.7.2
+click==8.1.7
+packaging==23.2
+numpy==1.24.3
+
+# Testing
+pytest==7.4.3
+pytest-cov==4.1.0
+httpx==0.25.0
+
+# Optional
+docker==6.1.3

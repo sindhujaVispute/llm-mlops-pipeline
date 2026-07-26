@@ -10,9 +10,6 @@ on:
 env:
   PYTHON_VERSION: '3.11'
   MLFLOW_TRACKING_URI: http://localhost:5000
-  MODEL_NAME: distilgpt2
-  MAX_LENGTH: 100
-  TEMPERATURE: 0.8
 
 jobs:
   test:
@@ -48,19 +45,18 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+        pip install torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
         pip install pytest pytest-cov flake8 black httpx2
     
     - name: Start MLflow server with SQLite
       run: |
-        # Use SQLite backend instead of filesystem
         mlflow server \
           --host 0.0.0.0 \
           --port 5000 \
           --backend-store-uri sqlite:///mlflow.db \
           --default-artifact-root ./artifacts \
           --serve-artifacts &
-        sleep 5
-        echo "MLflow server started"
+        sleep 10
     
     - name: Verify MLflow is running
       run: |
@@ -73,7 +69,6 @@ jobs:
           sleep 2
         done
         echo "❌ MLflow failed to start"
-        cat mlflow.log 2>/dev/null || echo "No log file"
         exit 1
     
     - name: Run tests with coverage
@@ -84,8 +79,6 @@ jobs:
       uses: codecov/codecov-action@v4
       with:
         file: ./coverage.xml
-        flags: unittests
-        name: codecov-umbrella
         fail_ci_if_error: false
 
   train:
@@ -123,6 +116,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+        pip install torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
     
     - name: Start MLflow server with SQLite
       run: |
@@ -133,8 +127,6 @@ jobs:
           --default-artifact-root ./artifacts \
           --serve-artifacts &
         sleep 10
-        echo "MLflow server started"
-        ls -la mlflow.db 2>/dev/null || echo "Database file not yet created"
     
     - name: Verify MLflow is running
       run: |
