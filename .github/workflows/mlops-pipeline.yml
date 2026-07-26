@@ -13,6 +13,8 @@ env:
   MODEL_NAME: distilgpt2
   MAX_LENGTH: 100
   TEMPERATURE: 0.8
+  # Convert repository name to lowercase
+  REPO_LOWERCASE: ${{ github.repository }}
 
 jobs:
   test:
@@ -148,20 +150,6 @@ jobs:
       run: |
         python -m app.train
     
-    - name: List registered models
-      run: |
-        python -c "
-        import mlflow
-        client = mlflow.tracking.MlflowClient()
-        try:
-            models = client.search_registered_models()
-            print(f'Found {len(models)} registered models')
-            for model in models:
-                print(f'  - {model.name}: {len(model.latest_versions)} versions')
-        except Exception as e:
-            print(f'Error: {e}')
-        "
-    
     - name: Verify model in registry
       run: |
         python -c "
@@ -202,20 +190,25 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
     
+    - name: Convert repository name to lowercase
+      id: repo_name
+      run: |
+        echo "repo_lowercase=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+    
     - name: Build and push Docker image
       uses: docker/build-push-action@v6
       with:
         context: .
         push: true
         tags: |
-          ghcr.io/${{ github.repository }}/llm-mlops:latest
-          ghcr.io/${{ github.repository }}/llm-mlops:${{ github.sha }}
+          ghcr.io/${{ steps.repo_name.outputs.repo_lowercase }}/llm-mlops:latest
+          ghcr.io/${{ steps.repo_name.outputs.repo_lowercase }}/llm-mlops:${{ github.sha }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
     
     - name: Test Docker image
       run: |
-        docker run -d -p 8000:8000 --name test-container ghcr.io/${{ github.repository }}/llm-mlops:latest
+        docker run -d -p 8000:8000 --name test-container ghcr.io/${{ steps.repo_name.outputs.repo_lowercase }}/llm-mlops:latest
         sleep 15
         curl -f http://localhost:8000/ || (docker logs test-container && exit 1)
         docker stop test-container
