@@ -95,7 +95,7 @@ def test_hardware_info():
     assert "total" in info["memory"]
 
 
-@pytest.mark.slow
+# Removed @pytest.mark.slow since it wasn't registered
 def test_batch_generation():
     """Test generating multiple texts."""
     loader = ModelLoader(settings.MODEL_NAME, use_gpu=False)

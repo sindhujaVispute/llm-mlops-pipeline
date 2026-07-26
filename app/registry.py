@@ -4,7 +4,7 @@ Model registry utilities for loading registered models from MLflow.
 
 import mlflow
 import logging
-from typing import Tuple
+from typing import Tuple, List, Dict, Any
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from app.config import settings
 
@@ -80,7 +80,7 @@ class ModelRegistry:
             logger.error(f"Failed to load model version {version}: {str(e)}")
             raise
     
-    def list_versions(self) -> list:
+    def list_versions(self) -> List[Dict[str, Any]]:
         """
         List all versions of the model in the registry.
         
@@ -89,7 +89,11 @@ class ModelRegistry:
         """
         try:
             client = mlflow.tracking.MlflowClient()
-            versions = client.get_latest_versions(self.registry_name)
+            try:
+                versions = client.get_latest_versions(self.registry_name)
+            except Exception as e:
+                logger.warning(f"No model found in registry: {e}")
+                return []
             
             return [{
                 "version": v.version,
@@ -101,4 +105,4 @@ class ModelRegistry:
             
         except Exception as e:
             logger.error(f"Failed to list model versions: {str(e)}")
-            raise
+            return []

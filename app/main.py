@@ -28,16 +28,23 @@ logger = setup_logging()
 
 
 # Pydantic models for request/response
+from pydantic import BaseModel, Field, ConfigDict
+
 class GenerateRequest(BaseModel):
     """Request model for text generation."""
-    prompt: str = Field(..., description="Input text prompt for generation", example="Explain MLOps")
+    prompt: str = Field(
+        ..., 
+        description="Input text prompt for generation",
+        json_schema_extra={"example": "Explain MLOps in simple terms"}
+    )
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "prompt": "Explain MLOps in simple terms"
             }
         }
+    )
 
 
 class GenerateResponse(BaseModel):
