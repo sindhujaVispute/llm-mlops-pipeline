@@ -4,7 +4,6 @@ Handles environment variables and application settings.
 """
 
 import os
-from typing import Optional
 from dataclasses import dataclass, field
 from pathlib import Path
 from dotenv import load_dotenv
@@ -19,7 +18,7 @@ class Settings:
     
     # MLflow settings
     MLFLOW_TRACKING_URI: str = field(
-        default_factory=lambda: os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
+        default_factory=lambda: os.getenv("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db")
     )
     MLFLOW_EXPERIMENT_NAME: str = field(
         default_factory=lambda: os.getenv("MLFLOW_EXPERIMENT_NAME", "DistilGPT2-MLOps")
@@ -41,9 +40,15 @@ class Settings:
     
     # Paths
     BASE_DIR: Path = Path(__file__).parent.parent
-    MODELS_DIR: Path = BASE_DIR / "models"
-    LOGS_DIR: Path = BASE_DIR / "logs"
-    ARTIFACTS_DIR: Path = BASE_DIR / "artifacts"
+    MODELS_DIR: Path = field(
+        default_factory=lambda: Path(__file__).parent.parent / "models"
+    )
+    LOGS_DIR: Path = field(
+        default_factory=lambda: Path(__file__).parent.parent / "logs"
+    )
+    ARTIFACTS_DIR: Path = field(
+        default_factory=lambda: Path(__file__).parent.parent / "artifacts"
+    )
     
     # API settings
     API_HOST: str = field(
@@ -62,11 +67,6 @@ class Settings:
         """Create necessary directories after initialization."""
         for directory in [self.MODELS_DIR, self.LOGS_DIR, self.ARTIFACTS_DIR]:
             directory.mkdir(parents=True, exist_ok=True)
-    
-    @classmethod
-    def from_env(cls) -> "Settings":
-        """Create Settings instance from environment variables."""
-        return cls()
 
 
 # Global settings instance
