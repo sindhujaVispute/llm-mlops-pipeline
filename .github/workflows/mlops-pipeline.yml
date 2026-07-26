@@ -9,12 +9,13 @@ on:
 
 env:
   PYTHON_VERSION: '3.11'
-  MLFLOW_TRACKING_URI: http://localhost:5000
+  MLFLOW_TRACKING_URI: sqlite:///mlflow.db
   MODEL_NAME: distilgpt2
   MAX_LENGTH: 100
   TEMPERATURE: 0.8
 
 jobs:
+  # JOB 1: Test
   test:
     name: 🧪 Test
     runs-on: ubuntu-latest
@@ -48,31 +49,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
         pip install pytest pytest-cov flake8 black httpx2
-    
-    - name: Start MLflow server
-      run: |
-        mlflow server \
-          --host 0.0.0.0 \
-          --port 5000 \
-          --backend-store-uri sqlite:///mlflow.db \
-          --default-artifact-root ./artifacts \
-          --serve-artifacts &
-        sleep 10
-    
-    - name: Verify MLflow is running
-      run: |
-        for i in {1..30}; do
-          if curl -s http://localhost:5000/health > /dev/null; then
-            echo "✅ MLflow is running!"
-            exit 0
-          fi
-          echo "Waiting for MLflow... ($i/30)"
-          sleep 2
-        done
-        echo "❌ MLflow failed to start"
-        exit 1
     
     - name: Run tests with coverage
       run: |
@@ -84,6 +61,7 @@ jobs:
         file: ./coverage.xml
         fail_ci_if_error: false
 
+  # JOB 2: Train & Register
   train:
     name: 🤖 Train & Register
     runs-on: ubuntu-latest
@@ -121,14 +99,9 @@ jobs:
         pip install -r requirements.txt
         pip install torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
     
-    - name: Start MLflow server
+    - name: Start MLflow with SQLite
       run: |
-        mlflow server \
-          --host 0.0.0.0 \
-          --port 5000 \
-          --backend-store-uri sqlite:///mlflow.db \
-          --default-artifact-root ./artifacts \
-          --serve-artifacts &
+        mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri sqlite:///mlflow.db &
         sleep 10
     
     - name: Verify MLflow is running
@@ -168,6 +141,7 @@ jobs:
           artifacts/
           logs/
 
+  # JOB 3: Build Docker
   docker:
     name: 🐳 Build Docker
     runs-on: ubuntu-latest
@@ -198,14 +172,45 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
     
-    - name: Test Docker image
+    - name: Test Docker image with SQLite
       run: |
-        docker run -d -p 8000:8000 --name test-container ${{ secrets.DOCKER_USERNAME }}/llm-mlops:latest
-        sleep 15
+        echo "🚀 Testing Docker image with SQLite backend..."
+        
+        # Run container with SQLite backend (NO MLflow server needed!)
+        docker run -d -p 8000:8000 --name test-container \
+          -e MLFLOW_TRACKING_URI=sqlite:///mlflow.db \
+          ${{ secrets.DOCKER_USERNAME }}/llm-mlops:latest
+        
+        # Wait for container to start
+        echo "⏳ Waiting for container to start..."
+        sleep 20
+        
+        # Check if container is running
+        if [ "$(docker ps -q -f name=test-container)" ]; then
+          echo "✅ Container is running"
+        else
+          echo "❌ Container failed to start"
+          docker logs test-container
+          exit 1
+        fi
+        
+        # Test health endpoint
+        echo "🔍 Testing health endpoint..."
         curl -f http://localhost:8000/ || (docker logs test-container && exit 1)
+        
+        # Test generation endpoint
+        echo "🔍 Testing generation endpoint..."
+        curl -f -X POST http://localhost:8000/generate \
+          -H "Content-Type: application/json" \
+          -d '{"prompt": "Explain MLOps"}' || (docker logs test-container && exit 1)
+        
+        echo "✅ All tests passed!"
+        
+        # Clean up
         docker stop test-container
         docker rm test-container
 
+  # JOB 4: Deploy to Render
   deploy:
     name: 🚀 Deploy to Render
     runs-on: ubuntu-latest
@@ -232,6 +237,7 @@ jobs:
           -d '{"serviceId": "'"$RENDER_SERVICE_ID"'"}' \
           https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys
 
+  # JOB 5: Notification
   notify:
     name: 📧 Notification
     runs-on: ubuntu-latest
