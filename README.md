@@ -12,4 +12,4 @@ This project demonstrates a complete end-to-end MLOps pipeline for deploying a s
 - **GitHub Actions** for CI/CD
 - **Render** for cloud deployment
 
-## 🏗️ Architecture
+
