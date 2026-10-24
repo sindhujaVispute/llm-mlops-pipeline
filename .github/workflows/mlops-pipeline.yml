@@ -17,7 +17,7 @@ env:
 jobs:
   # JOB 1: Test
   test:
-    name: 🧪 Test
+    name:  Test
     runs-on: ubuntu-latest
     
     steps:
@@ -63,7 +63,7 @@ jobs:
 
   # JOB 2: Train & Register
   train:
-    name: 🤖 Train & Register
+    name: Train & Register
     runs-on: ubuntu-latest
     needs: test
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
@@ -108,13 +108,13 @@ jobs:
       run: |
         for i in {1..30}; do
           if curl -s http://localhost:5000/health > /dev/null; then
-            echo "✅ MLflow is running!"
+            echo "MLflow is running!"
             exit 0
           fi
           echo "Waiting for MLflow... ($i/30)"
           sleep 2
         done
-        echo "❌ MLflow failed to start"
+        echo " MLflow failed to start"
         exit 1
     
     - name: Run training pipeline
@@ -127,7 +127,7 @@ jobs:
         from app.registry import ModelRegistry
         registry = ModelRegistry()
         versions = registry.list_versions()
-        print(f'✅ Model versions found: {len(versions)}')
+        print(f'Model versions found: {len(versions)}')
         for v in versions:
             print(f'  - Version {v[\"version\"]}: Status {v[\"status\"]}')
         "
@@ -143,7 +143,7 @@ jobs:
 
   # JOB 3: Build Docker
   docker:
-    name: 🐳 Build Docker
+    name: Build Docker
     runs-on: ubuntu-latest
     needs: train
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
@@ -174,7 +174,7 @@ jobs:
     
     - name: Test Docker image with SQLite
       run: |
-        echo "🚀 Testing Docker image with SQLite backend..."
+        echo "Testing Docker image with SQLite backend..."
         
         # Run container with SQLite backend (NO MLflow server needed!)
         docker run -d -p 8000:8000 --name test-container \
@@ -182,29 +182,29 @@ jobs:
           ${{ secrets.DOCKER_USERNAME }}/llm-mlops:latest
         
         # Wait for container to start
-        echo "⏳ Waiting for container to start..."
+        echo "Waiting for container to start..."
         sleep 20
         
         # Check if container is running
         if [ "$(docker ps -q -f name=test-container)" ]; then
-          echo "✅ Container is running"
+          echo "Container is running"
         else
-          echo "❌ Container failed to start"
+          echo "Container failed to start"
           docker logs test-container
           exit 1
         fi
         
         # Test health endpoint
-        echo "🔍 Testing health endpoint..."
+        echo " Testing health endpoint..."
         curl -f http://localhost:8000/ || (docker logs test-container && exit 1)
         
         # Test generation endpoint
-        echo "🔍 Testing generation endpoint..."
+        echo " Testing generation endpoint..."
         curl -f -X POST http://localhost:8000/generate \
           -H "Content-Type: application/json" \
           -d '{"prompt": "Explain MLOps"}' || (docker logs test-container && exit 1)
         
-        echo "✅ All tests passed!"
+        echo "All tests passed!"
         
         # Clean up
         docker stop test-container
@@ -212,7 +212,7 @@ jobs:
 
   # JOB 4: Deploy to Render
   deploy:
-    name: 🚀 Deploy to Render
+    name: Deploy to Render
     runs-on: ubuntu-latest
     needs: docker
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
@@ -227,10 +227,10 @@ jobs:
         RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
       run: |
         if [ -z "$RENDER_API_KEY" ]; then
-          echo "⚠️ RENDER_API_KEY not set. Skipping deployment."
+          echo " RENDER_API_KEY not set. Skipping deployment."
           exit 0
         fi
-        echo "🚀 Deploying to Render..."
+        echo " Deploying to Render..."
         curl -X POST \
           -H "Authorization: Bearer $RENDER_API_KEY" \
           -H "Content-Type: application/json" \
@@ -239,7 +239,7 @@ jobs:
 
   # JOB 5: Notification
   notify:
-    name: 📧 Notification
+    name: Notification
     runs-on: ubuntu-latest
     needs: [test, train, docker, deploy]
     if: always()
@@ -250,8 +250,8 @@ jobs:
         echo "========================================"
         echo "  Pipeline Status Summary"
         echo "========================================"
-        echo "✅ Test Status: ${{ needs.test.result }}"
-        echo "✅ Train Status: ${{ needs.train.result }}"
-        echo "✅ Docker Status: ${{ needs.docker.result }}"
-        echo "✅ Deploy Status: ${{ needs.deploy.result }}"
+        echo " Test Status: ${{ needs.test.result }}"
+        echo " Train Status: ${{ needs.train.result }}"
+        echo " Docker Status: ${{ needs.docker.result }}"
+        echo " Deploy Status: ${{ needs.deploy.result }}"
         echo "========================================"
