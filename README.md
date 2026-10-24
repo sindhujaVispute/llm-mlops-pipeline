@@ -1,8 +1,8 @@
-# 🚀 LLM MLOps Pipeline using MLflow
+#  LLM MLOps Pipeline using MLflow
 
 A production-ready MLOps pipeline for deploying DistilGPT-2 with MLflow tracking, FastAPI, Docker, and GitHub Actions CI/CD.
 
-## 📋 Overview
+##  Overview
 
 This project demonstrates a complete end-to-end MLOps pipeline for deploying a small language model (DistilGPT-2) with:
 
